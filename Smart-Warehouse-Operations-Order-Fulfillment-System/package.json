@@ -1,0 +1,11 @@
+{
+  "name": "smart-warehouse-operations-order-fulfillment-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static warehouse operations dashboard app",
+  "scripts": {
+    "start": "python -m http.server 8000 --directory warehouse-app",
+    "dev": "python -m http.server 8000 --directory warehouse-app",
+    "serve": "python -m http.server 8000 --directory warehouse-app"
+  }
+}

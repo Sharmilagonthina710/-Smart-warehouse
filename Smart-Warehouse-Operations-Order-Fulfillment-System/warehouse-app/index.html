@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DOCKLINE — Smart Warehouse Operations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ============ DESIGN TOKENS ============ */
+:root{
+  --bg:            #12161B;
+  --bg-panel:      #1A2029;
+  --bg-panel-2:    #202834;
+  --steel:         #2A323C;
+  --line:          #2E3844;
+  --line-soft:     #232B35;
+  --text:          #E8ECF1;
+  --text-dim:      #9AA7B4;
+  --text-faint:    #5F6C79;
+  --orange:        #FF6A1A;
+  --orange-dim:    #7A3417;
+  --amber:         #FFB020;
+  --green:         #2ED976;
+  --red:           #FF4757;
+  --blue:          #4C9EFF;
+  --font-display:  'Barlow Condensed', sans-serif;
+  --font-body:     'Inter', sans-serif;
+  --font-mono:     'JetBrains Mono', monospace;
+  --radius: 3px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font-body);
+  -webkit-font-smoothing:antialiased;
+  background-image:
+    linear-gradient(180deg, rgba(255,106,26,0.04), transparent 300px);
+}
+#root{min-height:100vh;}
+::selection{background:var(--orange);color:#12161B;}
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--steel);border-radius:5px;}
+::-webkit-scrollbar-thumb:hover{background:var(--orange-dim);}
+
+a{color:inherit;}
+button{font-family:inherit;cursor:pointer;}
+
+/* ===== hazard stripe divider — signature motif ===== */
+.hazard{
+  height:4px;
+  background:repeating-linear-gradient(135deg, var(--orange) 0 10px, #1A2029 10px 20px);
+  opacity:0.85;
+}
+.hazard.thin{height:2px;opacity:0.55;}
+
+/* ===== layout shell ===== */
+.shell{display:flex; min-height:100vh;}
+.sidebar{
+  width:230px; flex-shrink:0; background:var(--bg-panel);
+  border-right:1px solid var(--line); display:flex; flex-direction:column;
+  position:sticky; top:0; height:100vh;
+}
+.brand{
+  padding:20px 18px 14px 18px; border-bottom:1px solid var(--line-soft);
+}
+.brand .mark{
+  font-family:var(--font-display); font-weight:800; font-size:26px; letter-spacing:0.5px;
+  color:var(--text); line-height:1;
+}
+.brand .mark span{color:var(--orange);}
+.brand .sub{
+  font-family:var(--font-mono); font-size:10px; color:var(--text-faint);
+  letter-spacing:1.5px; margin-top:4px; text-transform:uppercase;
+}
+.nav{padding:14px 10px; flex:1;}
+.nav-item{
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px; margin-bottom:2px; border-radius:var(--radius);
+  color:var(--text-dim); font-weight:600; font-size:13.5px;
+  border-left:2px solid transparent; transition:background .12s, color .12s;
+}
+.nav-item:hover{background:var(--bg-panel-2); color:var(--text);}
+.nav-item.active{
+  background:var(--bg-panel-2); color:var(--text);
+  border-left:2px solid var(--orange);
+}
+.nav-item .ic{width:16px;height:16px;flex-shrink:0;}
+.nav-item .badge{
+  margin-left:auto; font-family:var(--font-mono); font-size:10px;
+  background:var(--orange-dim); color:var(--amber); padding:1px 6px; border-radius:8px;
+}
+.sidebar-foot{
+  padding:14px 18px; border-top:1px solid var(--line-soft);
+  font-family:var(--font-mono); font-size:10px; color:var(--text-faint);
+}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);margin-right:6px;box-shadow:0 0 6px var(--green);}
+
+.main{flex:1; min-width:0; display:flex; flex-direction:column;}
+.topbar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 26px; border-bottom:1px solid var(--line); background:rgba(26,32,41,0.5);
+  position:sticky; top:0; z-index:5; backdrop-filter:blur(6px);
+}
+.topbar h1{font-family:var(--font-display); font-size:24px; font-weight:700; margin:0; letter-spacing:0.3px;}
+.topbar .eyebrow{font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:2px;}
+.clock{font-family:var(--font-mono); font-size:12.5px; color:var(--text-dim); text-align:right;}
+.clock b{color:var(--text); font-weight:600;}
+
+.content{padding:22px 26px 60px 26px; flex:1;}
+
+/* ===== cards / panels ===== */
+.panel{
+  background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius);
+}
+.panel-head{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:13px 16px; border-bottom:1px solid var(--line-soft);
+}
+.panel-head h3{font-family:var(--font-display); font-size:16.5px; font-weight:700; margin:0; letter-spacing:0.3px;}
+.panel-body{padding:16px;}
+
+.kpi-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:18px;}
+@media(max-width:1150px){.kpi-grid{grid-template-columns:repeat(2,1fr);}}
+.kpi{
+  background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius);
+  padding:14px 16px; position:relative; overflow:hidden;
+}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--kpi-color,var(--orange));}
+.kpi .lbl{font-family:var(--font-mono); font-size:10px; color:var(--text-faint); text-transform:uppercase; letter-spacing:1px;}
+.kpi .val{font-family:var(--font-display); font-size:32px; font-weight:700; margin-top:2px; line-height:1;}
+.kpi .delta{font-size:11px; color:var(--text-dim); margin-top:4px;}
+
+/* ===== priority conveyor — signature element ===== */
+.conveyor-wrap{
+  background:linear-gradient(180deg,#171D24,#141920);
+  border:1px solid var(--line); border-radius:var(--radius); padding:16px; overflow-x:auto;
+  position:relative;
+}
+.conveyor-track{
+  height:3px; background:repeating-linear-gradient(90deg, var(--steel) 0 14px, transparent 14px 20px);
+  margin:0 4px 14px 4px; position:relative;
+}
+.conveyor-lane{display:flex; gap:10px; padding-bottom:6px; min-width:max-content;}
+.chip{
+  min-width:150px; background:var(--bg-panel-2); border:1px solid var(--line);
+  border-left:3px solid var(--chip-color, var(--blue));
+  border-radius:var(--radius); padding:9px 11px; cursor:pointer; transition:transform .12s, border-color .12s;
+}
+.chip:hover{transform:translateY(-2px); border-color:var(--chip-color, var(--blue));}
+.chip .id{font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint);}
+.chip .who{font-weight:700; font-size:13px; margin:2px 0;}
+.chip .tag{
+  display:inline-block; font-family:var(--font-mono); font-size:9.5px; letter-spacing:0.5px;
+  padding:1px 6px; border-radius:8px; margin-top:4px; text-transform:uppercase;
+  background:color-mix(in srgb, var(--chip-color, var(--blue)) 18%, transparent);
+  color:var(--chip-color, var(--blue));
+}
+.dock-icon{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:54px;color:var(--text-faint);font-family:var(--font-mono);font-size:9px;text-align:center;letter-spacing:1px;}
+
+/* ===== badges / pills ===== */
+.pill{
+  display:inline-flex; align-items:center; gap:5px; font-family:var(--font-mono);
+  font-size:10.5px; letter-spacing:0.4px; padding:2px 8px; border-radius:9px; text-transform:uppercase; font-weight:500;
+}
+.pill.urgent{background:rgba(255,71,87,0.14); color:var(--red);}
+.pill.high{background:rgba(255,176,32,0.14); color:var(--amber);}
+.pill.normal{background:rgba(76,158,255,0.14); color:var(--blue);}
+.pill.low{background:rgba(154,167,180,0.14); color:var(--text-dim);}
+.pill.ok{background:rgba(46,217,118,0.14); color:var(--green);}
+.pill.warn{background:rgba(255,176,32,0.14); color:var(--amber);}
+.pill.crit{background:rgba(255,71,87,0.14); color:var(--red);}
+
+.status-chip{font-family:var(--font-mono); font-size:10.5px; padding:3px 9px; border-radius:var(--radius); background:var(--steel); color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px;}
+
+/* ===== tables ===== */
+table{width:100%; border-collapse:collapse; font-size:13px;}
+th{
+  text-align:left; font-family:var(--font-mono); font-size:10px; color:var(--text-faint);
+  text-transform:uppercase; letter-spacing:1px; padding:8px 10px; border-bottom:1px solid var(--line);
+  font-weight:500;
+}
+td{padding:10px 10px; border-bottom:1px solid var(--line-soft); vertical-align:middle;}
+tr.row-clickable{cursor:pointer; transition:background .1s;}
+tr.row-clickable:hover{background:var(--bg-panel-2);}
+.mono{font-family:var(--font-mono); font-size:12px;}
+.bin-tag{
+  display:inline-block; font-family:var(--font-mono); font-size:10px; font-weight:700;
+  background:var(--orange); color:#1A1005; padding:2px 6px; border-radius:2px; letter-spacing:0.5px;
+}
+
+/* ===== progress bar ===== */
+.bar-track{height:6px; background:var(--steel); border-radius:3px; overflow:hidden; width:90px;}
+.bar-fill{height:100%; border-radius:3px;}
+
+/* ===== buttons ===== */
+.btn{
+  font-family:var(--font-body); font-weight:600; font-size:12.5px; padding:7px 13px;
+  border-radius:var(--radius); border:1px solid var(--line); background:var(--bg-panel-2); color:var(--text);
+  display:inline-flex; align-items:center; gap:6px; transition:border-color .12s, background .12s;
+}
+.btn:hover{border-color:var(--orange);}
+.btn.primary{background:var(--orange); border-color:var(--orange); color:#1A1005;}
+.btn.primary:hover{background:#ff7c33;}
+.btn.ghost{background:transparent;}
+.btn.danger{border-color:var(--red); color:var(--red); background:transparent;}
+.btn.danger:hover{background:rgba(255,71,87,0.1);}
+.btn:disabled{opacity:0.35; cursor:not-allowed;}
+.btn.small{padding:4px 9px; font-size:11.5px;}
+
+/* ===== tabs / filters ===== */
+.tabbar{display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap;}
+.tabbtn{
+  font-family:var(--font-mono); font-size:11px; letter-spacing:0.5px; text-transform:uppercase;
+  padding:6px 12px; border-radius:14px; border:1px solid var(--line); background:transparent; color:var(--text-dim); font-weight:500;
+}
+.tabbtn.active{background:var(--orange); border-color:var(--orange); color:#1A1005; font-weight:700;}
+
+/* ===== decision log ===== */
+.log-entry{
+  display:flex; gap:10px; padding:10px 0; border-bottom:1px solid var(--line-soft);
+}
+.log-entry:last-child{border-bottom:none;}
+.log-dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex-shrink:0;}
+.log-text{font-size:12.5px; color:var(--text-dim); line-height:1.5;}
+.log-text b{color:var(--text); font-weight:600;}
+.log-time{font-family:var(--font-mono); font-size:10px; color:var(--text-faint); margin-top:2px;}
+
+/* ===== modal / drawer ===== */
+.overlay{
+  position:fixed; inset:0; background:rgba(10,13,17,0.72); backdrop-filter:blur(2px);
+  display:flex; justify-content:flex-end; z-index:50; animation:fadein .15s ease;
+}
+@keyframes fadein{from{opacity:0} to{opacity:1}}
+.drawer{
+  width:520px; max-width:92vw; background:var(--bg-panel); height:100%; overflow-y:auto;
+  border-left:1px solid var(--line); animation:slidein .18s ease;
+}
+@keyframes slidein{from{transform:translateX(30px);opacity:0} to{transform:translateX(0);opacity:1}}
+.drawer-head{
+  padding:18px 20px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg-panel); z-index:2;
+  display:flex; justify-content:space-between; align-items:flex-start;
+}
+.drawer-body{padding:18px 20px;}
+.close-x{background:none;border:none;color:var(--text-dim);font-size:20px;line-height:1;padding:2px 6px;}
+.close-x:hover{color:var(--red);}
+
+.section-title{
+  font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); text-transform:uppercase;
+  letter-spacing:1.5px; margin:18px 0 8px 0; display:flex;align-items:center;gap:8px;
+}
+.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
+
+.stage-track{display:flex; align-items:center; margin:14px 0 4px 0;}
+.stage{
+  flex:1; text-align:center; position:relative; font-family:var(--font-mono); font-size:10px;
+  color:var(--text-faint); text-transform:uppercase; letter-spacing:0.5px;
+}
+.stage .node{
+  width:20px;height:20px;border-radius:50%;background:var(--steel); margin:0 auto 6px auto;
+  display:flex;align-items:center;justify-content:center; border:2px solid var(--line); font-size:11px; color:var(--text-dim);
+}
+.stage.done .node{background:var(--green); border-color:var(--green); color:#0A1F13;}
+.stage.current .node{background:var(--orange); border-color:var(--orange); color:#1A1005; box-shadow:0 0 0 4px rgba(255,106,26,0.18);}
+.stage-line{position:absolute; top:10px; left:-50%; width:100%; height:2px; background:var(--line); z-index:-1;}
+.stage.done .stage-line{background:var(--green);}
+.stage:first-child .stage-line{display:none;}
+
+.alloc-row{display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--line-soft); font-size:12.5px;}
+.alloc-row:last-child{border-bottom:none;}
+
+.callout{
+  border-radius:var(--radius); padding:10px 12px; font-size:12.5px; line-height:1.55; margin-top:10px;
+  border:1px solid var(--line);
+}
+.callout.crit{background:rgba(255,71,87,0.08); border-color:rgba(255,71,87,0.35); color:#FFC9CE;}
+.callout.warn{background:rgba(255,176,32,0.08); border-color:rgba(255,176,32,0.35); color:#FFE1A8;}
+.callout.ok{background:rgba(46,217,118,0.08); border-color:rgba(46,217,118,0.35); color:#B8F5D2;}
+.callout.info{background:rgba(76,158,255,0.08); border-color:rgba(76,158,255,0.35); color:#C7E1FF;}
+
+.empty{padding:40px 20px; text-align:center; color:var(--text-faint); font-size:13px;}
+.empty .big{font-family:var(--font-display); font-size:20px; color:var(--text-dim); margin-bottom:4px;}
+
+.grid-2{display:grid; grid-template-columns:1.3fr 1fr; gap:16px;}
+@media(max-width:1100px){.grid-2{grid-template-columns:1fr;}}
+.grid-3{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
+@media(max-width:1100px){.grid-3{grid-template-columns:1fr;}}
+
+.zone-loc{font-family:var(--font-mono); font-size:11px; color:var(--text-dim);}
+
+.checklist-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line-soft);font-size:13px;}
+.checklist-item:last-child{border-bottom:none;}
+.cbx{width:17px;height:17px;border-radius:4px;border:1.5px solid var(--line);flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--bg-panel-2);}
+.cbx.checked{background:var(--green);border-color:var(--green);color:#0A1F13;font-size:12px;font-weight:900;}
+
+input[type=text],input[type=number],select,textarea{
+  width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); border-radius:var(--radius);
+  padding:8px 10px; font-family:var(--font-body); font-size:13px;
+}
+input:focus,select:focus,textarea:focus{outline:1.5px solid var(--orange); border-color:var(--orange);}
+label.field-label{font-family:var(--font-mono); font-size:10px; color:var(--text-faint); text-transform:uppercase; letter-spacing:1px; display:block; margin-bottom:5px;}
+.field{margin-bottom:12px;}
+
+.toast-wrap{position:fixed; bottom:20px; right:20px; z-index:100; display:flex; flex-direction:column; gap:8px;}
+.toast{
+  background:var(--bg-panel-2); border:1px solid var(--line); border-left:3px solid var(--green);
+  padding:11px 14px; border-radius:var(--radius); font-size:12.5px; min-width:260px; max-width:340px;
+  box-shadow:0 8px 24px rgba(0,0,0,0.4); animation:slideup .18s ease;
+}
+@keyframes slideup{from{transform:translateY(10px);opacity:0} to{transform:translateY(0);opacity:1}}
+.toast b{display:block; font-weight:700; margin-bottom:2px;}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation:none !important; transition:none !important;}
+}
+
+.footer-note{
+  margin-top:30px; padding-top:16px; border-top:1px solid var(--line-soft);
+  font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); display:flex; justify-content:space-between;
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const {useState, useMemo, useEffect, useRef} = React;
+
+/* =========================================================================
+   ICONS (tiny inline SVGs — no external icon dependency)
+========================================================================= */
+const Icon = ({d, size=16}) => (
+  <svg className="ic" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
+);
+const IconDash = (p)=><Icon {...p} d={<><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></>}/>;
+const IconBox = (p)=><Icon {...p} d={<><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></>}/>;
+const IconCart = (p)=><Icon {...p} d={<><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></>}/>;
+const IconPick = (p)=><Icon {...p} d={<><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></>}/>;
+const IconAlert = (p)=><Icon {...p} d={<><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>}/>;
+const IconTruck = (p)=><Icon {...p} d={<><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></>}/>;
+const IconChart = (p)=><Icon {...p} d={<><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></>}/>;
+const IconX = (p)=><Icon {...p} d={<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>}/>;
+const IconCheck = (p)=><Icon {...p} d={<polyline points="20 6 9 17 4 12"/>}/>;
+const IconClock = (p)=><Icon {...p} d={<><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>}/>;
+const IconArrow = (p)=><Icon {...p} d={<><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></>}/>;
+const IconLayers = (p)=><Icon {...p} d={<><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></>}/>;
+
+/* =========================================================================
+   MOCK DATA
+========================================================================= */
+const now = new Date('2026-08-18T09:40:00');
+const hrs = (h) => new Date(now.getTime() + h*3600*1000);
+
+let PRODUCTS = [
+  {sku:'WH-1001', name:'Steel Hex Bolt M8 (Box/100)', category:'Fasteners', zone:'A', aisle:'12', bin:'03', stock:340, reserved:60, damaged:2, reorderPoint:150, safetyStock:80, leadTime:4, avgDailyUsage:38, unitCost:14.20, supplier:'Norrland Metal Co.'},
+  {sku:'WH-1002', name:'Cordless Drill 18V', category:'Power Tools', zone:'B', aisle:'04', bin:'11', stock:22, reserved:14, damaged:1, reorderPoint:25, safetyStock:10, leadTime:9, avgDailyUsage:4.5, unitCost:89.00, supplier:'ToolForge Industries'},
+  {sku:'WH-1003', name:'Safety Helmet — Hi-Vis Orange', category:'PPE', zone:'C', aisle:'01', bin:'02', stock:8, reserved:12, damaged:0, reorderPoint:40, safetyStock:20, leadTime:3, avgDailyUsage:9, unitCost:11.50, supplier:'GuardWear Ltd.'},
+  {sku:'WH-1004', name:'Pallet Wrap Film 500mm', category:'Packaging', zone:'D', aisle:'07', bin:'05', stock:150, reserved:20, damaged:0, reorderPoint:60, safetyStock:30, leadTime:2, avgDailyUsage:12, unitCost:6.75, supplier:'WrapTech'},
+  {sku:'WH-1005', name:'Industrial Shelving Bracket', category:'Hardware', zone:'A', aisle:'09', bin:'14', stock:64, reserved:40, damaged:3, reorderPoint:70, safetyStock:25, leadTime:6, avgDailyUsage:8, unitCost:22.10, supplier:'Norrland Metal Co.'},
+  {sku:'WH-1006', name:'LED Floodlight 50W', category:'Electrical', zone:'B', aisle:'02', bin:'08', stock:5, reserved:5, damaged:0, reorderPoint:20, safetyStock:8, leadTime:7, avgDailyUsage:3, unitCost:34.90, supplier:'Voltline Corp'},
+  {sku:'WH-1007', name:'Forklift Battery Charger', category:'Fleet', zone:'E', aisle:'01', bin:'01', stock:3, reserved:2, damaged:0, reorderPoint:4, safetyStock:2, leadTime:14, avgDailyUsage:0.4, unitCost:410.00, supplier:'PowerHaul'},
+  {sku:'WH-1008', name:'Corrugated Boxes 40x30x30', category:'Packaging', zone:'D', aisle:'02', bin:'09', stock:920, reserved:120, damaged:5, reorderPoint:400, safetyStock:150, leadTime:3, avgDailyUsage:85, unitCost:1.15, supplier:'WrapTech'},
+  {sku:'WH-1009', name:'Nitrile Gloves (Box/100)', category:'PPE', zone:'C', aisle:'01', bin:'06', stock:44, reserved:18, damaged:0, reorderPoint:60, safetyStock:25, leadTime:3, avgDailyUsage:11, unitCost:9.40, supplier:'GuardWear Ltd.'},
+  {sku:'WH-1010', name:'Warehouse Barcode Scanner', category:'Tech', zone:'B', aisle:'06', bin:'02', stock:16, reserved:6, damaged:0, reorderPoint:10, safetyStock:5, leadTime:10, avgDailyUsage:1.2, unitCost:145.00, supplier:'ScanPoint Systems'},
+  {sku:'WH-1011', name:'Hydraulic Pallet Jack', category:'Fleet', zone:'E', aisle:'02', bin:'03', stock:6, reserved:3, damaged:0, reorderPoint:5, safetyStock:2, leadTime:12, avgDailyUsage:0.3, unitCost:320.00, supplier:'PowerHaul'},
+  {sku:'WH-1012', name:'Cable Ties 300mm (Pack/500)', category:'Hardware', zone:'A', aisle:'14', bin:'01', stock:210, reserved:30, damaged:0, reorderPoint:100, safetyStock:40, leadTime:2, avgDailyUsage:18, unitCost:8.20, supplier:'FastenPro'},
+];
+
+let ORDERS_SEED = [
+  {id:'ORD-8841', customer:'Meridian Retail Group', tier:'VIP', createdAt:hrs(-5), deadline:hrs(1.5), value:4820, items:[{sku:'WH-1002',qty:10},{sku:'WH-1010',qty:4}], notes:'Store re-launch — contractual same-day SLA.'},
+  {id:'ORD-8842', customer:'BuildRight Contractors', tier:'Standard', createdAt:hrs(-8), deadline:hrs(30), value:1210, items:[{sku:'WH-1001',qty:20},{sku:'WH-1012',qty:15}], notes:''},
+  {id:'ORD-8843', customer:'Northgate Logistics', tier:'Standard', createdAt:hrs(-3), deadline:hrs(3), value:2600, items:[{sku:'WH-1003',qty:15},{sku:'WH-1009',qty:10}], notes:'Site safety audit tomorrow AM — PPE critical.'},
+  {id:'ORD-8844', customer:'Summit Facilities Mgmt', tier:'VIP', createdAt:hrs(-1), deadline:hrs(4), value:3100, items:[{sku:'WH-1006',qty:8},{sku:'WH-1005',qty:12}], notes:''},
+  {id:'ORD-8845', customer:'Coastal Hardware Co.', tier:'Standard', createdAt:hrs(-20), deadline:hrs(4), value:640, items:[{sku:'WH-1004',qty:25}], notes:''},
+  {id:'ORD-8846', customer:'Pinegrove Warehousing', tier:'Standard', createdAt:hrs(-2), deadline:hrs(48), value:5400, items:[{sku:'WH-1008',qty:200},{sku:'WH-1004',qty:40}], notes:''},
+  {id:'ORD-8847', customer:'Arclight Fleet Services', tier:'VIP', createdAt:hrs(-0.5), deadline:hrs(2), value:6900, items:[{sku:'WH-1007',qty:2},{sku:'WH-1011',qty:2}], notes:'Fleet down — two forklifts idle without chargers.'},
+  {id:'ORD-8848', customer:'Redline Manufacturing', tier:'Standard', createdAt:hrs(-14), deadline:hrs(20), value:1890, items:[{sku:'WH-1001',qty:30},{sku:'WH-1005',qty:20}], notes:''},
+  {id:'ORD-8849', customer:'Solstice Electrical', tier:'Standard', createdAt:hrs(-6), deadline:hrs(10), value:980, items:[{sku:'WH-1006',qty:6}], notes:''},
+  {id:'ORD-8850', customer:'Union Depot Supplies', tier:'Standard', createdAt:hrs(-40), deadline:hrs(-2), value:2250, items:[{sku:'WH-1009',qty:22},{sku:'WH-1003',qty:10}], notes:'Already past SLA window — escalated.'},
+];
+
+const STAGES = ['created','allocated','picking','packing','qc','dispatched'];
+const STAGE_LABEL = {created:'Order Created', allocated:'Stock Allocated', picking:'Picking', packing:'Packing', qc:'Quality Check', dispatched:'Dispatched'};
+
+/* =========================================================================
+   DECISION ENGINE
+========================================================================= */
+function hoursUntil(date){ return (date - now) / 3600000; }
+
+// --- 1. PRIORITY SCORING ---------------------------------------------------
+function computePriority(order){
+  let score = 0;
+  const reasons = [];
+
+  const h = hoursUntil(order.deadline);
+  if(h < 0){ score += 55; reasons.push(`SLA already breached (${Math.abs(h).toFixed(1)}h overdue)`); }
+  else if(h <= 3){ score += 45; reasons.push(`Deadline in ${h.toFixed(1)}h — critical window`); }
+  else if(h <= 8){ score += 28; reasons.push(`Deadline in ${h.toFixed(1)}h — tight window`); }
+  else if(h <= 24){ score += 14; reasons.push(`Deadline within 24h`); }
+  else { score += 4; reasons.push(`Deadline comfortable (${h.toFixed(0)}h out)`); }
+
+  if(order.tier === 'VIP'){ score += 20; reasons.push('VIP account tier'); }
+
+  if(order.value >= 5000){ score += 12; reasons.push('High order value (≥ $5,000)'); }
+  else if(order.value >= 2000){ score += 6; reasons.push('Mid order value'); }
+
+  const ageH = -hoursUntil(order.createdAt);
+  if(ageH >= 24){ score += 8; reasons.push('Waiting > 24h — aging order'); }
+
+  if(/critical|down|audit|contractual/i.test(order.notes||'')){ score += 10; reasons.push('Operational flag in order notes'); }
+
+  let label = 'LOW';
+  if(score >= 55) label = 'URGENT';
+  else if(score >= 35) label = 'HIGH';
+  else if(score >= 18) label = 'NORMAL';
+
+  return {score, label, reasons};
+}
+
+// --- 2. INVENTORY ALLOCATION -----------------------------------------------
+// Greedy, priority-ordered allocation across all open orders sharing SKUs.
+// Full allocation to top priority first; partial + backorder to the rest.
+function runAllocation(orders, products){
+  const avail = {};
+  products.forEach(p => avail[p.sku] = p.stock - p.reserved - p.damaged);
+
+  const ranked = [...orders]
+    .filter(o => o.stage === 'created' || o.stage === 'allocated')
+    .map(o => ({...o, priority: computePriority(o)}))
+    .sort((a,b) => b.priority.score - a.priority.score);
+
+  const log = [];
+  const allocations = {}; // orderId -> {sku: {requested, allocated, shortfall}}
+
+  ranked.forEach(order => {
+    allocations[order.id] = {};
+    let fullyAllocated = true;
+    order.items.forEach(item => {
+      const have = avail[item.sku] ?? 0;
+      const give = Math.min(have, item.qty);
+      const short = item.qty - give;
+      avail[item.sku] = have - give;
+      allocations[order.id][item.sku] = {requested:item.qty, allocated:give, shortfall:short};
+      if(short > 0){
+        fullyAllocated = false;
+        log.push({
+          type: short === item.qty ? 'crit' : 'warn',
+          text: `<b>${order.id}</b> (${order.priority.label}) — ${short === item.qty ? 'no stock available' : 'partial allocation'} for <b>${item.sku}</b>: got ${give}/${item.qty}, short ${short}. Backordered pending replenishment.`,
+        });
+      }
+    });
+    if(fullyAllocated){
+      log.push({type:'ok', text:`<b>${order.id}</b> (${order.priority.label}) — fully allocated across all line items.`});
+    }
+  });
+
+  return {allocations, avail, log, ranked};
+}
+
+// --- 3. REORDER RECOMMENDATION ---------------------------------------------
+function reorderRecommendation(p){
+  const available = p.stock - p.reserved - p.damaged;
+  const demandDuringLead = p.avgDailyUsage * p.leadTime;
+  const targetLevel = demandDuringLead + p.safetyStock;
+  const needsReorder = available <= p.reorderPoint;
+  const recQty = needsReorder ? Math.max(0, Math.ceil(targetLevel - available)) : 0;
+  let urgency = 'ok';
+  if(available <= 0) urgency = 'crit';
+  else if(available <= p.reorderPoint * 0.5) urgency = 'crit';
+  else if(available <= p.reorderPoint) urgency = 'warn';
+  return {available, needsReorder, recQty, urgency, targetLevel: Math.ceil(targetLevel)};
+}
+
+// --- 4. PICK PATH OPTIMIZATION ----------------------------------------------
+// Sort by zone -> aisle -> bin to minimize travel distance (simple serpentine model)
+function optimizePickPath(items, products){
+  const withLoc = items.map(it => {
+    const p = products.find(pp => pp.sku === it.sku);
+    return {...it, zone:p.zone, aisle:p.aisle, bin:p.bin, name:p.name};
+  });
+  return withLoc.sort((a,b) => {
+    if(a.zone !== b.zone) return a.zone.localeCompare(b.zone);
+    if(a.aisle !== b.aisle) return a.aisle.localeCompare(b.aisle);
+    return a.bin.localeCompare(b.bin);
+  });
+}
+
+// --- 5. EXCEPTION HANDLING --------------------------------------------------
+function resolveException(kind, sku, qty, products, orders){
+  const p = products.find(pp=>pp.sku===sku);
+  const suggestions = [];
+  if(kind === 'damaged'){
+    suggestions.push(`Deduct ${qty} unit(s) of ${sku} from sellable stock; route to QC-hold for inspection.`);
+    const avail = p.stock - p.reserved - p.damaged - qty;
+    if(avail <= p.reorderPoint){
+      suggestions.push(`Available stock now at/below reorder point (${p.reorderPoint}) — reorder recommendation triggered automatically.`);
+    }
+    const impacted = orders.filter(o => o.stage!=='dispatched' && o.items.some(i=>i.sku===sku));
+    if(impacted.length){
+      suggestions.push(`Re-run allocation engine — ${impacted.length} open order(s) referencing this SKU may shift to partial/backorder.`);
+    }
+  } else if(kind === 'missing'){
+    suggestions.push(`Flag ${qty} unit(s) of ${sku} as missing from bin ${p.bin}, zone ${p.zone}. Trigger cycle count for that location.`);
+    suggestions.push(`Provisionally reduce available stock to prevent further over-promising until count confirms.`);
+  }
+  return suggestions;
+}
+
+/* =========================================================================
+   SMALL HELPERS
+========================================================================= */
+function fmtTime(d){
+  return d.toLocaleString('en-US', {month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+}
+function relTime(d){
+  const h = (d-now)/3600000;
+  if(Math.abs(h) < 1) return `${Math.round(h*60)}m`;
+  return `${h>0?'in ':''}${Math.abs(h).toFixed(1)}h${h<0?' ago':''}`;
+}
+function priorityColor(label){
+  return {URGENT:'var(--red)', HIGH:'var(--amber)', NORMAL:'var(--blue)', LOW:'var(--text-dim)'}[label];
+}
+function pillClass(label){
+  return {URGENT:'urgent', HIGH:'high', NORMAL:'normal', LOW:'low'}[label];
+}
+
+/* =========================================================================
+   APP STATE INIT
+========================================================================= */
+const initialOrders = ORDERS_SEED.map((o,i) => ({
+  ...o,
+  stage: i < 2 ? 'picking' : (i===2 ? 'packing' : (i===3?'qc': (i===9?'allocated':'created'))),
+  exceptions: [],
+  history: [{stage:'created', at:o.createdAt}],
+}));
+
+/* =========================================================================
+   REACT APP
+========================================================================= */
+function App(){
+  const [tab, setTab] = useState('dashboard');
+  const [products, setProducts] = useState(PRODUCTS);
+  const [orders, setOrders] = useState(initialOrders);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [toasts, setToasts] = useState([]);
+  const [clock, setClock] = useState(now);
+
+  useEffect(()=>{
+    const t = setInterval(()=> setClock(new Date(now.getTime()+ (Date.now()%1000)*0)), 60000);
+    return ()=>clearInterval(t);
+  },[]);
+
+  function pushToast(title, body, color='var(--green)'){
+    const id = Math.random().toString(36).slice(2);
+    setToasts(t=>[...t, {id, title, body, color}]);
+    setTimeout(()=> setToasts(t=>t.filter(x=>x.id!==id)), 4200);
+  }
+
+  const allocation = useMemo(()=> runAllocation(orders, products), [orders, products]);
+
+  function advanceStage(orderId){
+    setOrders(prev => prev.map(o=>{
+      if(o.id !== orderId) return o;
+      const idx = STAGES.indexOf(o.stage);
+      if(idx >= STAGES.length-1) return o;
+      const next = STAGES[idx+1];
+      pushToast(`${o.id} advanced`, `Now in ${STAGE_LABEL[next]}`, 'var(--green)');
+      return {...o, stage: next, history:[...o.history, {stage:next, at:new Date()}]};
+    }));
+  }
+
+  function reportException(orderId, sku, kind, qty){
+    setOrders(prev => prev.map(o=> o.id===orderId ? {...o, exceptions:[...o.exceptions, {sku, kind, qty, at:new Date()}]} : o));
+    setProducts(prev => prev.map(p=>{
+      if(p.sku !== sku) return p;
+      if(kind==='damaged') return {...p, damaged: p.damaged + qty, stock: p.stock};
+      if(kind==='missing') return {...p, stock: Math.max(0, p.stock - qty)};
+      return p;
+    }));
+    pushToast(`Exception logged — ${sku}`, `${qty} unit(s) marked ${kind}. Re-allocation triggered.`, 'var(--red)');
+  }
+
+  return (
+    <div className="shell">
+      <Sidebar tab={tab} setTab={setTab} orders={orders} products={products} />
+      <div className="main">
+        <Topbar tab={tab} clock={clock} />
+        <div className="content">
+          {tab==='dashboard' && <Dashboard orders={orders} products={products} allocation={allocation} onOpenOrder={setSelectedOrder} setTab={setTab} />}
+          {tab==='orders' && <OrdersTab orders={orders} products={products} allocation={allocation} onOpenOrder={setSelectedOrder} />}
+          {tab==='inventory' && <InventoryTab products={products} orders={orders} />}
+          {tab==='picking' && <PickingTab orders={orders} products={products} allocation={allocation} advanceStage={advanceStage} reportException={reportException} onOpenOrder={setSelectedOrder} />}
+          {tab==='exceptions' && <ExceptionsTab orders={orders} products={products} />}
+          {tab==='analytics' && <AnalyticsTab orders={orders} products={products} />}
+        </div>
+        <div className="footer-note">
+          <span>DOCKLINE WMS — SIMULATED ENVIRONMENT · MOCK DATA ONLY</span>
+          <span>BUILD 2026.08 · HACKATHON DEMO</span>
+        </div>
+      </div>
+
+      {selectedOrder && (
+        <OrderDrawer
+          order={orders.find(o=>o.id===selectedOrder.id) || selectedOrder}
+          products={products}
+          allocation={allocation}
+          onClose={()=>setSelectedOrder(null)}
+          advanceStage={advanceStage}
+          reportException={reportException}
+        />
+      )}
+
+      <div className="toast-wrap">
+        {toasts.map(t=>(
+          <div className="toast" key={t.id} style={{borderLeftColor:t.color}}>
+            <b>{t.title}</b>{t.body}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------- SIDEBAR ---------------------------- */
+function Sidebar({tab, setTab, orders, products}){
+  const urgentCount = orders.filter(o=> o.stage!=='dispatched' && computePriority(o).label==='URGENT').length;
+  const lowStockCount = products.filter(p=> reorderRecommendation(p).needsReorder).length;
+  const excCount = orders.reduce((s,o)=>s+o.exceptions.length,0);
+
+  const items = [
+    {id:'dashboard', label:'Dashboard', Ic:IconDash},
+    {id:'orders', label:'Orders', Ic:IconCart, badge: urgentCount || null},
+    {id:'inventory', label:'Inventory', Ic:IconBox, badge: lowStockCount || null},
+    {id:'picking', label:'Picking & Packing', Ic:IconPick},
+    {id:'exceptions', label:'Exceptions', Ic:IconAlert, badge: excCount || null},
+    {id:'analytics', label:'Analytics', Ic:IconChart},
+  ];
+  return (
+    <div className="sidebar">
+      <div className="brand">
+        <div className="mark">DOCK<span>LINE</span></div>
+        <div className="sub">Warehouse Ops Control</div>
+      </div>
+      <div className="hazard thin"></div>
+      <div className="nav">
+        {items.map(it=>(
+          <div key={it.id} className={"nav-item" + (tab===it.id?' active':'')} onClick={()=>setTab(it.id)}>
+            <it.Ic className="ic" />
+            <span>{it.label}</span>
+            {it.badge ? <span className="badge">{it.badge}</span> : null}
+          </div>
+        ))}
+      </div>
+      <div className="sidebar-foot">
+        <div><span className="dot"></span>Shift B — Live Sync</div>
+        <div style={{marginTop:4}}>Zones A–E · 12 SKUs tracked</div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------- TOPBAR ---------------------------- */
+const TAB_META = {
+  dashboard:{eyebrow:'Operations Overview', title:'Warehouse Dashboard'},
+  orders:{eyebrow:'Fulfillment Queue', title:'Order Management'},
+  inventory:{eyebrow:'Stock Control', title:'Inventory & Stock Monitoring'},
+  picking:{eyebrow:'Floor Operations', title:'Picking & Packing'},
+  exceptions:{eyebrow:'Exception Handling', title:'Damaged & Missing Items'},
+  analytics:{eyebrow:'Insights', title:'Operational Analytics'},
+};
+function Topbar({tab, clock}){
+  const meta = TAB_META[tab];
+  return (
+    <div className="topbar">
+      <div>
+        <div className="eyebrow">{meta.eyebrow}</div>
+        <h1>{meta.title}</h1>
+      </div>
+      <div className="clock">
+        <div><b>{fmtTime(now)}</b></div>
+        <div style={{color:'var(--text-faint)'}}>Guntur DC-04 · Shift ends 18:00</div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------- DASHBOARD ---------------------------- */
+function Dashboard({orders, products, allocation, onOpenOrder, setTab}){
+  const open = orders.filter(o=>o.stage!=='dispatched');
+  const urgent = open.filter(o=>computePriority(o).label==='URGENT');
+  const lowStock = products.filter(p=>reorderRecommendation(p).needsReorder);
+  const dispatchedToday = orders.filter(o=>o.stage==='dispatched').length;
+  const fulfillmentRate = Math.round((dispatchedToday / orders.length) * 100);
+  const pendingDispatch = orders.filter(o=>o.stage==='qc' || o.stage==='packing').length;
+
+  const ranked = [...open].map(o=>({...o, priority:computePriority(o)})).sort((a,b)=>b.priority.score-a.priority.score);
+
+  return (
+    <div>
+      <div className="kpi-grid">
+        <div className="kpi" style={{'--kpi-color':'var(--blue)'}}>
+          <div className="lbl">Open Orders</div>
+          <div className="val">{open.length}</div>
+          <div className="delta">of {orders.length} total in system</div>
+        </div>
+        <div className="kpi" style={{'--kpi-color':'var(--red)'}}>
+          <div className="lbl">Urgent Priority</div>
+          <div className="val">{urgent.length}</div>
+          <div className="delta">need allocation now</div>
+        </div>
+        <div className="kpi" style={{'--kpi-color':'var(--amber)'}}>
+          <div className="lbl">Low / Out of Stock</div>
+          <div className="val">{lowStock.length}</div>
+          <div className="delta">SKUs at or below reorder point</div>
+        </div>
+        <div className="kpi" style={{'--kpi-color':'var(--orange)'}}>
+          <div className="lbl">Pending Dispatch</div>
+          <div className="val">{pendingDispatch}</div>
+          <div className="delta">in packing / QC</div>
+        </div>
+        <div className="kpi" style={{'--kpi-color':'var(--green)'}}>
+          <div className="lbl">Fulfillment Rate</div>
+          <div className="val">{fulfillmentRate}%</div>
+          <div className="delta">orders dispatched today</div>
+        </div>
+      </div>
+
+      <div className="panel" style={{marginBottom:16}}>
+        <div className="panel-head">
+          <h3>Priority Conveyor — Live Queue</h3>
+          <span className="status-chip">sorted by urgency score</span>
+        </div>
+        <div className="panel-body">
+          <div className="conveyor-wrap">
+            <div className="conveyor-lane">
+              {ranked.map(o=>(
+                <div key={o.id} className="chip" style={{'--chip-color':priorityColor(o.priority.label)}} onClick={()=>onOpenOrder(o)}>
+                  <div className="id">{o.id} · {o.tier}</div>
+                  <div className="who">{o.customer}</div>
+                  <div className="zone-loc">{o.items.length} line(s) · ${o.value.toLocaleString()}</div>
+                  <span className="tag">{o.priority.label} · {relTime(o.deadline)}</span>
+                </div>
+              ))}
+              <div className="dock-icon"><IconTruck size={20}/>DISPATCH<br/>DOCK</div>
+            </div>
+            <div className="conveyor-track"></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid-2">
+        <div className="panel">
+          <div className="panel-head">
+            <h3>Allocation Decision Log</h3>
+            <span className="status-chip">auto-generated</span>
+          </div>
+          <div className="panel-body">
+            {allocation.log.length === 0 && <div className="empty">No allocation actions yet.</div>}
+            {allocation.log.slice(0,8).map((l,i)=>(
+              <div className="log-entry" key={i}>
+                <div className="log-dot" style={{background: l.type==='crit'?'var(--red)':l.type==='warn'?'var(--amber)':'var(--green)'}}></div>
+                <div>
+                  <div className="log-text" dangerouslySetInnerHTML={{__html:l.text}}></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-head">
+            <h3>Critical Reorder Alerts</h3>
+            <span className="status-chip" style={{cursor:'pointer'}} onClick={()=>setTab('inventory')}>view all</span>
+          </div>
+          <div className="panel-body">
+            {lowStock.length===0 && <div className="empty">All SKUs above reorder point.</div>}
+            {lowStock.sort((a,b)=>reorderRecommendation(a).available-reorderRecommendation(b).available).slice(0,6).map(p=>{
+              const r = reorderRecommendation(p);
+              return (
+                <div className="alloc-row" key={p.sku}>
+                  <div>
+                    <div style={{fontWeight:600}}>{p.name}</div>
+                    <div className="mono" style={{color:'var(--text-faint)'}}>{p.sku} · <span className="bin-tag">{p.zone}-{p.aisle}-{p.bin}</span></div>
+                  </div>
+                  <div style={{textAlign:'right'}}>
+                    <span className={"pill " + (r.urgency==='crit'?'crit':'warn')}>{r.available} avail</span>
+                    <div style={{fontSize:11, color:'var(--text-faint)', marginTop:3}}>reorder {r.recQty} units</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------- ORDERS TAB ---------------------------- */
+function OrdersTab({orders, products, allocation, onOpenOrder}){
+  const [filter, setFilter] = useState('all');
+  const withPriority = orders.map(o=>({...o, priority:computePriority(o)}));
+
+  let filtered = withPriority;
+  if(filter==='urgent') filtered = withPriority.filter(o=>o.priority.label==='URGENT');
+  if(filter==='open') filtered = withPriority.filter(o=>o.stage!=='dispatched');
+  if(filter==='dispatched') filtered = withPriority.filter(o=>o.stage==='dispatched');
+  if(filter==='shortfall') filtered = withPriority.filter(o=> Object.values(allocation.allocations[o.id]||{}).some(a=>a.shortfall>0));
+
+  filtered = [...filtered].sort((a,b)=> b.priority.score - a.priority.score);
+
+  return (
+    <div>
+      <div className="tabbar">
+        {[['all','All Orders'],['open','Open'],['urgent','Urgent'],['shortfall','Allocation Shortfall'],['dispatched','Dispatched']].map(([k,l])=>(
+          <button key={k} className={"tabbtn"+(filter===k?' active':'')} onClick={()=>setFilter(k)}>{l}</button>
+        ))}
+      </div>
+      <div className="panel">
+        <table>
+          <thead>
+            <tr>
+              <th>Order</th><th>Customer</th><th>Priority</th><th>Stage</th><th>Items</th><th>Deadline</th><th>Value</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(o=>{
+              const alloc = allocation.allocations[o.id];
+              const hasShort = alloc && Object.values(alloc).some(a=>a.shortfall>0);
+              return (
+                <tr key={o.id} className="row-clickable" onClick={()=>onOpenOrder(o)}>
+                  <td className="mono">{o.id}</td>
+                  <td>{o.customer}<div style={{fontSize:11,color:'var(--text-faint)'}}>{o.tier}</div></td>
+                  <td><span className={"pill "+pillClass(o.priority.label)}>{o.priority.label}</span></td>
+                  <td><span className="status-chip">{STAGE_LABEL[o.stage]}</span></td>
+                  <td>{o.items.length} SKU{o.items.length>1?'s':''}{hasShort && <span className="pill warn" style={{marginLeft:6}}>short</span>}</td>
+                  <td className="mono" style={{color: hoursUntil(o.deadline)<0 ? 'var(--red)':'var(--text-dim)'}}>{relTime(o.deadline)}</td>
+                  <td className="mono">${o.value.toLocaleString()}</td>
+                  <td><IconArrow size={14} /></td>
+                </tr>
+              );
+            })}
+            {filtered.length===0 && <tr><td colSpan="8"><div className="empty">No orders match this filter.</div></td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------- INVENTORY TAB ---------------------------- */
+function InventoryTab({products, orders}){
+  const [q, setQ] = useState('');
+  const [cat, setCat] = useState('all');
+  const cats = ['all', ...new Set(products.map(p=>p.category))];
+  const filtered = products.filter(p =>
+    (cat==='all'||p.category===cat) &&
+    (p.name.toLowerCase().includes(q.toLowerCase()) || p.sku.toLowerCase().includes(q.toLowerCase()))
+  );
+
+  return (
+    <div>
+      <div style={{display:'flex', gap:10, marginBottom:14, flexWrap:'wrap'}}>
+        <input type="text" placeholder="Search SKU or product name…" value={q} onChange={e=>setQ(e.target.value)} style={{maxWidth:280}} />
+        <select value={cat} onChange={e=>setCat(e.target.value)} style={{maxWidth:200}}>
+          {cats.map(c=><option key={c} value={c}>{c==='all'?'All Categories':c}</option>)}
+        </select>
+      </div>
+      <div className="panel">
+        <table>
+          <thead>
+            <tr>
+              <th>SKU / Product</th><th>Location</th><th>Stock</th><th>Reserved</th><th>Damaged</th><th>Available</th><th>Reorder Pt.</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(p=>{
+              const r = reorderRecommendation(p);
+              const pct = Math.max(0, Math.min(100, (r.available / (p.reorderPoint*2)) * 100));
+              return (
+                <tr key={p.sku}>
+                  <td>
+                    <div style={{fontWeight:600}}>{p.name}</div>
+                    <div className="mono" style={{color:'var(--text-faint)', fontSize:11}}>{p.sku} · {p.category}</div>
+                  </td>
+                  <td><span className="bin-tag">{p.zone}-{p.aisle}-{p.bin}</span></td>
+                  <td className="mono">{p.stock}</td>
+                  <td className="mono">{p.reserved}</td>
+                  <td className="mono" style={{color:p.damaged>0?'var(--red)':'var(--text-dim)'}}>{p.damaged}</td>
+                  <td>
+                    <div style={{fontWeight:700}}>{r.available}</div>
+                    <div className="bar-track"><div className="bar-fill" style={{width:pct+'%', background: r.urgency==='crit'?'var(--red)':r.urgency==='warn'?'var(--amber)':'var(--green)'}}></div></div>
+                  </td>
+                  <td className="mono">{p.reorderPoint}</td>
+                  <td>
+                    {r.urgency==='crit' && <span className="pill crit">reorder now · +{r.recQty}</span>}
+                    {r.urgency==='warn' && <span className="pill warn">low · +{r.recQty}</span>}
+                    {r.urgency==='ok' && <span className="pill ok">healthy</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------- PICKING TAB ---------------------------- */
+function PickingTab({orders, products, allocation, advanceStage, reportException, onOpenOrder}){
+  const active = orders.filter(o=> ['allocated','picking','packing','qc'].includes(o.stage))
+    .map(o=>({...o, priority:computePriority(o)}))
+    .sort((a,b)=>b.priority.score-a.priority.score);
+
+  return (
+    <div>
+      <div className="callout info" style={{marginBottom:16}}>
+        Pick lists below are sequenced by <b>zone → aisle → bin</b> to minimize travel distance across the floor. Orders are shown highest priority first.
+      </div>
+      {active.length===0 && <div className="panel"><div className="empty"><div className="big">Floor is clear</div>No orders currently in the pick/pack/QC pipeline.</div></div>}
+      <div style={{display:'flex', flexDirection:'column', gap:14}}>
+        {active.map(o=>{
+          const path = optimizePickPath(o.items, products);
+          const alloc = allocation.allocations[o.id] || {};
+          return (
+            <div className="panel" key={o.id}>
+              <div className="panel-head">
+                <div>
+                  <h3 style={{display:'flex', alignItems:'center', gap:8}}>
+                    {o.id} <span className={"pill "+pillClass(o.priority.label)}>{o.priority.label}</span>
+                  </h3>
+                  <div style={{fontSize:12, color:'var(--text-faint)', marginTop:2}}>{o.customer} · {STAGE_LABEL[o.stage]}</div>
+                </div>
+                <div style={{display:'flex', gap:8}}>
+                  <button className="btn small" onClick={()=>onOpenOrder(o)}>Details</button>
+                  {o.stage!=='qc' && <button className="btn small primary" onClick={()=>advanceStage(o.id)}>Advance → {STAGE_LABEL[STAGES[STAGES.indexOf(o.stage)+1]]}</button>}
+                  {o.stage==='qc' && <button className="btn small primary" onClick={()=>advanceStage(o.id)}>Pass QC → Dispatch</button>}
+                </div>
+              </div>
+              <div className="panel-body">
+                {path.map((it,i)=>{
+                  const a = alloc[it.sku] || {allocated:it.qty, shortfall:0};
+                  return (
+                    <div className="checklist-item" key={i}>
+                      <div className="cbx checked"><IconCheck size={11}/></div>
+                      <span className="bin-tag">{it.zone}-{it.aisle}-{it.bin}</span>
+                      <div style={{flex:1}}>
+                        <b>{it.name}</b> <span className="mono" style={{color:'var(--text-faint)'}}>({it.sku})</span>
+                      </div>
+                      <div className="mono">{a.allocated}/{it.qty}</div>
+                      {a.shortfall>0 && <span className="pill warn">short {a.shortfall}</span>}
+                      <button className="btn small danger" onClick={()=>{
+                        const qty = 1;
+                        reportException(o.id, it.sku, 'damaged', qty);
+                      }}>Report damage</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------- EXCEPTIONS TAB ---------------------------- */
+function ExceptionsTab({orders, products}){
+  const all = [];
+  orders.forEach(o => o.exceptions.forEach(e => all.push({...e, orderId:o.id, customer:o.customer})));
+  all.sort((a,b)=>b.at-a.at);
+
+  return (
+    <div>
+      {all.length===0 && (
+        <div className="panel"><div className="empty">
+          <div className="big">No exceptions reported</div>
+          Damaged or missing items reported from the Picking tab will appear here with system-recommended resolutions.
+        </div></div>
+      )}
+      <div style={{display:'flex', flexDirection:'column', gap:12}}>
+        {all.map((e,i)=>{
+          const suggestions = resolveException(e.kind, e.sku, e.qty, products, orders);
+          const p = products.find(pp=>pp.sku===e.sku);
+          return (
+            <div className="panel" key={i}>
+              <div className="panel-head">
+                <h3 style={{display:'flex',alignItems:'center',gap:8}}>
+                  <IconAlert size={16} style={{color:'var(--red)'}}/> {e.kind==='damaged'?'Damaged Item':'Missing Item'} — {e.sku}
+                </h3>
+                <span className="status-chip">{e.orderId}</span>
+              </div>
+              <div className="panel-body">
+                <div style={{fontSize:13, color:'var(--text-dim)'}}>{p?.name} · {e.qty} unit(s) · reported for {e.customer}</div>
+                <div className="section-title">System recommendation</div>
+                {suggestions.map((s,j)=>(
+                  <div className="callout warn" key={j} style={{marginTop:j===0?0:8}}>{s}</div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------- ANALYTICS TAB ---------------------------- */
+function AnalyticsTab({orders, products}){
+  const statusRef = useRef(null);
+  const bottleneckRef = useRef(null);
+  const stockRef = useRef(null);
+  const chartsRef = useRef({});
+
+  // mock avg durations (hours) per stage, with picking as intentional bottleneck
+  const stageDurations = {
+    'Order → Allocated': 0.6,
+    'Allocated → Picking': 1.2,
+    'Picking → Packing': 3.4,
+    'Packing → QC': 0.9,
+    'QC → Dispatch': 1.1,
+  };
+  const bottleneckStage = Object.entries(stageDurations).sort((a,b)=>b[1]-a[1])[0];
+
+  useEffect(()=>{
+    Object.values(chartsRef.current).forEach(c=>c && c.destroy());
+
+    const statusCounts = {};
+    STAGES.forEach(s=>statusCounts[STAGE_LABEL[s]]=0);
+    orders.forEach(o=>statusCounts[STAGE_LABEL[o.stage]]++);
+
+    chartsRef.current.status = new Chart(statusRef.current, {
+      type:'bar',
+      data:{ labels:Object.keys(statusCounts), datasets:[{ data:Object.values(statusCounts), backgroundColor:'#FF6A1A', borderRadius:3 }]},
+      options:{ plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#9AA7B4', font:{family:'Inter', size:10}}, grid:{color:'#2E3844'}}, y:{ticks:{color:'#9AA7B4', stepSize:1}, grid:{color:'#232B35'}} } }
+    });
+
+    chartsRef.current.bottleneck = new Chart(bottleneckRef.current, {
+      type:'bar',
+      data:{ labels:Object.keys(stageDurations), datasets:[{ data:Object.values(stageDurations), backgroundColor:Object.values(stageDurations).map(v=> v===bottleneckStage[1]?'#FF4757':'#4C9EFF'), borderRadius:3 }]},
+      options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#9AA7B4'}, grid:{color:'#232B35'}}, y:{ticks:{color:'#9AA7B4', font:{family:'Inter', size:10.5}}, grid:{display:false}} } }
+    });
+
+    const lowStock = products.map(p=> p.stock-p.reserved-p.damaged);
+    chartsRef.current.stock = new Chart(stockRef.current, {
+      type:'bar',
+      data:{ labels:products.map(p=>p.sku.replace('WH-','')), datasets:[
+        {label:'Available', data:lowStock, backgroundColor:'#2ED976', borderRadius:2},
+        {label:'Reorder Point', data:products.map(p=>p.reorderPoint), backgroundColor:'#2A323C', borderRadius:2},
+      ]},
+      options:{ plugins:{legend:{labels:{color:'#9AA7B4', font:{family:'Inter', size:11}}}}, scales:{ x:{ticks:{color:'#9AA7B4', font:{size:9}}, grid:{display:false}}, y:{ticks:{color:'#9AA7B4'}, grid:{color:'#232B35'}} } }
+    });
+
+    return ()=> Object.values(chartsRef.current).forEach(c=>c && c.destroy());
+  }, [orders, products]);
+
+  return (
+    <div>
+      <div className="callout crit" style={{marginBottom:16}}>
+        <b>Bottleneck detected:</b> the <b>{bottleneckStage[0]}</b> transition averages <b>{bottleneckStage[1]}h</b> — the slowest stage in the fulfillment pipeline. Consider adding a second picker during peak hours or re-sequencing high-item-count orders earlier in the queue.
+      </div>
+      <div className="grid-2" style={{marginBottom:16}}>
+        <div className="panel">
+          <div className="panel-head"><h3>Orders by Pipeline Stage</h3></div>
+          <div className="panel-body" style={{height:260}}><canvas ref={statusRef}></canvas></div>
+        </div>
+        <div className="panel">
+          <div className="panel-head"><h3>Avg. Stage Duration (Bottleneck View)</h3></div>
+          <div className="panel-body" style={{height:260}}><canvas ref={bottleneckRef}></canvas></div>
+        </div>
+      </div>
+      <div className="panel">
+        <div className="panel-head"><h3>Available Stock vs. Reorder Point</h3></div>
+        <div className="panel-body" style={{height:300}}><canvas ref={stockRef}></canvas></div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------- ORDER DRAWER ---------------------------- */
+function OrderDrawer({order, products, allocation, onClose, advanceStage, reportException}){
+  const priority = computePriority(order);
+  const alloc = allocation.allocations[order.id] || {};
+  const stageIdx = STAGES.indexOf(order.stage);
+
+  return (
+    <div className="overlay" onClick={(e)=>{ if(e.target.className==='overlay') onClose(); }}>
+      <div className="drawer">
+        <div className="drawer-head">
+          <div>
+            <div className="eyebrow" style={{fontFamily:'var(--font-mono)', fontSize:10.5, color:'var(--text-faint)', letterSpacing:1, textTransform:'uppercase'}}>{order.id}</div>
+            <h2 style={{fontFamily:'var(--font-display)', margin:'2px 0 0 0', fontSize:22}}>{order.customer}</h2>
+            <div style={{marginTop:6, display:'flex', gap:8}}>
+              <span className={"pill "+pillClass(priority.label)}>{priority.label} · score {priority.score}</span>
+              <span className="status-chip">{order.tier}</span>
+            </div>
+          </div>
+          <button className="close-x" onClick={onClose}><IconX size={20}/></button>
+        </div>
+        <div className="drawer-body">
+
+          <div className="section-title">Fulfillment stage</div>
+          <div className="stage-track">
+            {STAGES.map((s,i)=>(
+              <div key={s} className={"stage " + (i<stageIdx?'done':i===stageIdx?'current':'')}>
+                {i>0 && <div className="stage-line"></div>}
+                <div className="node">{i<stageIdx?<IconCheck size={11}/>:i+1}</div>
+                {STAGE_LABEL[s]}
+              </div>
+            ))}
+          </div>
+          {order.stage!=='dispatched' && (
+            <button className="btn primary small" style={{marginTop:12}} onClick={()=>advanceStage(order.id)}>
+              Advance to {STAGE_LABEL[STAGES[stageIdx+1]]} <IconArrow size={13}/>
+            </button>
+          )}
+
+          <div className="section-title">Why this priority</div>
+          {priority.reasons.map((r,i)=>(
+            <div className="log-entry" key={i}>
+              <div className="log-dot" style={{background:priorityColor(priority.label)}}></div>
+              <div className="log-text">{r}</div>
+            </div>
+          ))}
+
+          <div className="section-title">Allocation breakdown</div>
+          {order.items.map(it=>{
+            const p = products.find(pp=>pp.sku===it.sku);
+            const a = alloc[it.sku] || {requested:it.qty, allocated:it.qty, shortfall:0};
+            return (
+              <div className="alloc-row" key={it.sku}>
+                <div>
+                  <div style={{fontWeight:600}}>{p.name}</div>
+                  <div className="mono" style={{fontSize:11, color:'var(--text-faint)'}}>{it.sku} · <span className="bin-tag">{p.zone}-{p.aisle}-{p.bin}</span></div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div className="mono">{a.allocated}/{a.requested}</div>
+                  {a.shortfall>0 ? <span className="pill warn">backorder {a.shortfall}</span> : <span className="pill ok">full</span>}
+                </div>
+              </div>
+            );
+          })}
+          {Object.values(alloc).some(a=>a.shortfall>0) && (
+            <div className="callout warn">
+              This order has a stock shortfall. The allocation engine gave priority to higher-scoring orders competing for the same SKU(s). Replenishment or manual override may be required to fully close this order.
+            </div>
+          )}
+
+          {order.notes && (
+            <>
+              <div className="section-title">Notes</div>
+              <div className="callout info">{order.notes}</div>
+            </>
+          )}
+
+          {order.exceptions.length>0 && (
+            <>
+              <div className="section-title">Exceptions on this order</div>
+              {order.exceptions.map((e,i)=>(
+                <div className="callout crit" key={i}>{e.qty} unit(s) of {e.sku} reported {e.kind}.</div>
+              ))}
+            </>
+          )}
+
+          <div className="section-title">Report an exception</div>
+          <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+            {order.items.map(it=>(
+              <button key={it.sku} className="btn small danger" onClick={()=>reportException(order.id, it.sku, 'damaged', 1)}>
+                Damaged: {it.sku}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
